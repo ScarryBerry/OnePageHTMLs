@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Budget Manager</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+  :root {
+    --bg: #0f0f13;
+    --card: #1a1a24;
+    --accent: #6c5ce7;
+    --accent2: #a29bfe;
+    --green: #00b894;
+    --red: #e17055;
+    --text: #dfe6e9;
+    --text2: #636e72;
+    --border: #2d2d3a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+  header {
+    text-align: center;
+    padding: 30px 0 20px;
+  }
+
+  header h1 {
+    font-size: 1.8rem;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 5px;
+  }
+
+  .balance-card {
+    background: linear-gradient(135deg, var(--accent), #4834d4);
+    border-radius: 16px;
+    padding: 30px;
+    text-align: center;
+    margin-bottom: 25px;
+    box-shadow: 0 8px 32px rgba(108, 92, 231, 0.3);
+  }
+
+  .balance-card .label { font-size: 0.9rem; opacity: 0.8; margin-bottom: 5px; }
+  .balance-card .amount { font-size: 2.5rem; font-weight: 700; }
+
+  .tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 20px;
+    background: var(--card);
+    border-radius: 12px;
+    padding: 5px;
+  }
+
+  .tab {
+    flex: 1;
+    padding: 12px;
+    text-align: center;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-weight: 500;
+    border: none;
+    background: transparent;
+    color: var(--text2);
+    font-size: 0.95rem;
+  }
+
+  .tab.active {
+    background: var(--accent);
+    color: white;
+  }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .card {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+  }
+
+  .card h2 {
+    font-size: 1.1rem;
+    margin-bottom: 18px;
+    color: var(--accent2);
+  }
+
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(108, 92, 231, 0.05);
+  }
+
+  .upload-zone svg { width: 48px; height: 48px; fill: var(--text2); margin-bottom: 10px; }
+  .upload-zone p { color: var(--text2); font-size: 0.9rem; }
+  .upload-zone input { display: none; }
+
+  .preview-img {
+    max-width: 100%;
+    max-height: 250px;
+    border-radius: 8px;
+    margin-top: 15px;
+    display: none;
+  }
+
+  .ocr-status {
+    margin-top: 12px;
+    font-size: 0.85rem;
+    color: var(--accent2);
+    display: none;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 8px;
+    overflow: hidden;
+    display: none;
+  }
+
+  .progress-bar .fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    transition: width 0.3s;
+    width: 0%;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+  }
+
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.full { grid-column: 1 / -1; }
+
+  label {
+    font-size: 0.8rem;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  input, select, textarea {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.3s;
+    font-family: inherit;
+  }
+
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 60px; }
+
+  .type-toggle {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 5px;
+  }
+
+  .type-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text2);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.3s;
+    font-size: 0.9rem;
+  }
+
+  .type-btn.active.einnahme { border-color: var(--green); color: var(--green); background: rgba(0, 184, 148, 0.1); }
+  .type-btn.active.ausgabe { border-color: var(--red); color: var(--red); background: rgba(225, 112, 85, 0.1); }
+
+  .btn-submit {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), #4834d4);
+    color: white;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-top: 10px;
+  }
+
+  .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(108, 92, 231, 0.4); }
+  .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* Einzelposten */
+  .einzelposten-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+
+  .einzelposten-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .einzelposten-row input:first-child { flex: 2; }
+  .einzelposten-row input:last-of-type { flex: 1; }
+
+  .btn-small {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.3s;
+  }
+
+  .btn-small:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-remove { color: var(--red); border-color: var(--red); }
+
+  /* Tabelle */
+  .table-wrap { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 2px solid var(--border);
+    color: var(--text2);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  tr:hover td { background: rgba(108, 92, 231, 0.05); }
+
+  .amount-in { color: var(--green); font-weight: 600; }
+  .amount-out { color: var(--red); font-weight: 600; }
+
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    padding: 14px 28px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    z-index: 100;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    font-weight: 500;
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: var(--green); color: white; }
+  .toast.error { background: var(--red); color: white; }
+
+  .setup-hint {
+    background: rgba(108, 92, 231, 0.1);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 15px;
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+
+  .setup-hint code {
+    background: var(--bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+  }
+
+  .config-input {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 10px;
+  }
+
+  .config-input input { flex: 1; }
+
+  .config-input button {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: white;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 600px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .balance-card .amount { font-size: 2rem; }
+    .container { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>💰 Budget Manager</h1>
+  </header>
+
+  <div class="balance-card">
+    <div class="label">Aktuell verfügbar</div>
+    <div class="amount" id="balance">— €</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('upload')">📸 Beleg erfassen</button>
+    <button class="tab" onclick="switchTab('manual')">✏️ Manuell</button>
+    <button class="tab" onclick="switchTab('history')">📋 Übersicht</button>
+    <button class="tab" onclick="switchTab('settings')">⚙️</button>
+  </div>
+
+  <!-- UPLOAD TAB -->
+  <div class="panel active" id="panel-upload">
+    <div class="card">
+      <h2>📸 Beleg fotografieren / hochladen</h2>
+      <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+        <p>Klicke oder ziehe einen Beleg hierher</p>
+        <p style="font-size:0.75rem; margin-top:5px;">Unterstützt: JPG, PNG, PDF</p>
+        <input type="file" id="fileInput" accept="image/*,application/pdf" capture="environment">
+      </div>
+      <img class="preview-img" id="previewImg">
+      <div class="ocr-status" id="ocrStatus">🔍 Text wird erkannt...</div>
+      <div class="progress-bar" id="progressBar"><div class="fill" id="progressFill"></div></div>
+    </div>
+
+    <div class="card" id="ocrResultCard" style="display:none">
+      <h2>📝 Erkannte Daten (bitte prüfen)</h2>
+      <div id="entryFormUpload"></div>
+    </div>
+  </div>
+
+  <!-- MANUAL TAB -->
+  <div class="panel" id="panel-manual">
+    <div class="card">
+      <h2>✏️ Eintrag manuell hinzufügen</h2>
+      <div id="entryFormManual"></div>
+    </div>
+  </div>
+
+  <!-- HISTORY TAB -->
+  <div class="panel" id="panel-history">
+    <div class="card">
+      <h2>📋 März – Alle Einträge</h2>
+      <button class="btn-small" onclick="loadData()" style="margin-bottom:15px">🔄 Aktualisieren</button>
+      <div class="table-wrap" id="historyTable">
+        <p style="color:var(--text2);font-size:0.9rem">Klicke auf Aktualisieren um Daten zu laden.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div class="panel" id="panel-settings">
+    <div class="card">
+      <h2>⚙️ Einstellungen</h2>
+      <div class="setup-hint">
+        <strong>Setup-Anleitung:</strong><br>
+        1. Erstelle ein Google Apps Script mit dem bereitgestellten Code<br>
+        2. Setze deine <code>SPREADSHEET_ID</code> im Script<br>
+        3. Deploye als Web-App (Zugriff: Jeder)<br>
+        4. Füge die Web-App URL unten ein
+      </div>
+      <div class="form-group">
+        <label>Google Apps Script Web-App URL</label>
+        <div class="config-input">
+          <input type="url" id="scriptUrl" placeholder="https://script.google.com/macros/s/...../exec">
+          <button onclick="saveConfig()">Speichern</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============ STATE ============
+let currentType = 'ausgabe';
+let einzelposten = [];
+let scriptUrl = localStorage.getItem('budget_script_url') || '';
+
+// ============ INIT ============
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('scriptUrl').value = scriptUrl;
+  renderForm('entryFormManual', 'manual');
+  renderForm('entryFormUpload', 'upload');
+  if (scriptUrl) loadBalance();
+  setupDragDrop();
+});
+
+// ============ TABS ============
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', ['upload','manual','history','settings'][i] === name);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  if (name === 'history' && scriptUrl) loadData();
+}
+
+// ============ CONFIG ============
+function saveConfig() {
+  scriptUrl = document.getElementById('scriptUrl').value.trim();
+  localStorage.setItem('budget_script_url', scriptUrl);
+  showToast('URL gespeichert!', 'success');
+  loadBalance();
+}
+
+// ============ FORM RENDERING ============
+function renderForm(containerId, prefix) {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById(containerId).innerHTML = `
+    <div class="form-group full">
+      <label>Art</label>
+      <div class="type-toggle">
+        <div class="type-btn ausgabe ${currentType==='ausgabe'?'active':''}" onclick="setType('ausgabe','${prefix}')">📤 Ausgabe</div>
+        <div class="type-btn einnahme ${currentType==='einnahme'?'active':''}" onclick="setType('einnahme','${prefix}')">📥 Einnahme</div>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Betrag (€)</label>
+        <input type="number" step="0.01" id="${prefix}_betrag" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label>Datum</label>
+        <input type="date" id="${prefix}_datum" value="${today}">
+      </div>
+      <div class="form-group">
+        <label>Empfänger / Sender</label>
+        <input type="text" id="${prefix}_empfaenger" placeholder="z.B. REWE, Arbeitgeber...">
+      </div>
+      <div class="form-group">
+        <label>Aktion notwendig?</label>
+        <select id="${prefix}_aktion">
+          <option value="Nein">Nein</option>
+          <option value="Ja">Ja</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>Info</label>
+        <input type="text" id="${prefix}_info" placeholder="Kurzbeschreibung">
+      </div>
+      <div class="form-group full">
+        <label>Einzelposten (optional)</label>
+        <div class="einzelposten-list" id="${prefix}_einzelposten"></div>
+        <button class="btn-small" onclick="addEinzelposten('${prefix}')">+ Einzelposten hinzufügen</button>
+      </div>
+    </div>
+    <button class="btn-submit" id="${prefix}_submit" onclick="submitEntry('${prefix}')">💾 Eintrag speichern</button>
+  `;
+}
+
+function setType(type, prefix) {
+  currentType = type;
+  renderForm(prefix === 'upload' ? 'entryFormUpload' : 'entryFormManual', prefix);
+}
+
+function addEinzelposten(prefix) {
+  const list = document.getElementById(prefix + '_einzelposten');
+  const idx = list.children.length;
+  const row = document.createElement('div');
+  row.className = 'einzelposten-row';
+  row.innerHTML = `
+    <input type="text" placeholder="Beschreibung" id="${prefix}_ep_desc_${idx}">
+    <input type="number" step="0.01" placeholder="€" id="${prefix}_ep_cost_${idx}">
+    <button class="btn-small btn-remove" onclick="this.parentElement.remove()">✕</button>
+  `;
+  list.appendChild(row);
+}
+
+// ============ FILE UPLOAD & OCR ============
+function setupDragDrop() {
+  const zone = document.getElementById('dropZone');
+  const input = document.getElementById('fileInput');
+  
+  ['dragenter','dragover'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.remove('dragover'); }));
+  
+  zone.addEventListener('drop', e => { if(e.dataTransfer.files.length) processFile(e.dataTransfer.files[0]); });
+  input.addEventListener('change', e => { if(e.target.files.length) processFile(e.target.files[0]); });
+}
+
+async function processFile(file) {
+  const img = document.getElementById('previewImg');
+  const status = document.getElementById('ocrStatus');
+  const bar = document.getElementById('progressBar');
+  const fill = document.getElementById('progressFill');
+
+  // Preview
+  const reader = new FileReader();
+  reader.onload = e => { img.src = e.target.result; img.style.display = 'block'; };
+  reader.readAsDataURL(file);
+
+  // OCR
+  status.style.display = 'block';
+  bar.style.display = 'block';
+  status.textContent = '🔍 Text wird erkannt...';
+
+  try {
+    const result = await Tesseract.recognize(file, 'deu', {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          fill.style.width = Math.round(m.progress * 100) + '%';
+        }
+      }
+    });
+
+    const text = result.data.text;
+    status.textContent = '✅ Text erkannt! Daten werden extrahiert...';
+    
+    // Parse
+    const parsed = parseReceipt(text);
+    
+    // Show form with parsed data
+    document.getElementById('ocrResultCard').style.display = 'block';
+    renderForm('entryFormUpload', 'upload');
+    
+    // Fill parsed values
+    if (parsed.betrag) document.getElementById('upload_betrag').value = parsed.betrag;
+    if (parsed.empfaenger) document.getElementById('upload_empfaenger').value = parsed.empfaenger;
+    if (parsed.datum) document.getElementById('upload_datum').value = parsed.datum;
+    if (parsed.info) document.getElementById('upload_info').value = parsed.info;
+
+    // Einzelposten
+    if (parsed.einzelposten.length > 0) {
+      parsed.einzelposten.forEach((ep, i) => {
+        addEinzelposten('upload');
+        document.getElementById('upload_ep_desc_' + i).value = ep.desc;
+        document.getElementById('upload_ep_cost_' + i).value = ep.cost;
+      });
+    }
+
+    status.textContent = '✅ Fertig! Bitte Daten prüfen und speichern.';
+  } catch(err) {
+    status.textContent = '❌ Fehler bei der Texterkennung: ' + err.message;
+  }
+}
+
+function parseReceipt(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+  const result = { betrag: '', empfaenger: '', datum: '', info: '', einzelposten: [] };
+
+  // Empfänger = erste nicht-leere Zeile
+  if (lines.length > 0) result.empfaenger = lines[0];
+
+  // Datum finden (DD.MM.YYYY oder DD.MM.YY)
+  const dateMatch = text.match(/(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2,4})/);
+  if (dateMatch) {
+    let year = dateMatch[3];
+    if (year.length === 2) year = '20' + year;
+    const month = dateMatch[2].padStart(2, '0');
+    const day = dateMatch[1].padStart(2, '0');
+    result.datum = `${year}-${month}-${day}`;
+  }
+
+  // Gesamtbetrag (SUMME, TOTAL, GESAMT)
+  const totalPatterns = [/(?:summe|total|gesamt|zu zahlen|betrag)[:\s]*(\d+[.,]\d{2})/i, /(\d+[.,]\d{2})\s*€?\s*$/];
+  for (const pattern of totalPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      result.betrag = match[1].replace(',', '.');
+      break;
+    }
+  }
+
+  // Einzelposten: Zeilen mit Preisangaben
+  const pricePattern = /^(.+?)\s+(\d+[.,]\d{2})\s*[€AB]?\s*$/;
+  for (const line of lines) {
+    const m = line.match(pricePattern);
+    if (m && m[1].length > 2) {
+      const cost = parseFloat(m[2].replace(',', '.'));
+      if (cost > 0 && cost < 10000) {
+        result.einzelposten.push({ desc: m[1].trim(), cost: cost });
+      }
+    }
+  }
+
+  result.info = 'Beleg-Scan';
+  return result;
+}
+
+// ============ SUBMIT ============
+async function submitEntry(prefix) {
+  if (!scriptUrl) { showToast('Bitte erst die Script-URL in den Einstellungen setzen!', 'error'); return; }
+
+  const btn = document.getElementById(prefix + '_submit');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Wird gespeichert...';
+
+  const betrag = parseFloat(document.getElementById(prefix + '_betrag').value) || 0;
+  const datum = document.getElementById(prefix + '_datum').value;
+  const dateParts = datum.split('-');
+  const datumFormatted = dateParts[2] + '.' + dateParts[1];
+
+  // Einzelposten sammeln
+  const epList = document.getElementById(prefix + '_einzelposten');
+  const rows = epList ? epList.querySelectorAll('.einzelposten-row') : [];
+  let aufschluesselung = [];
+  let kostenEP = [];
+  rows.forEach((row, i) => {
+    const desc = document.getElementById(prefix + '_ep_desc_' + i);
+    const cost = document.getElementById(prefix + '_ep_cost_' + i);
+    if (desc && desc.value) {
+      aufschluesselung.push(desc.value);
+      kostenEP.push(cost ? cost.value : '');
+    }
+  });
+
+  const data = {
+    einnahmen: currentType === 'einnahme' ? betrag : '',
+    ausgaben: currentType === 'ausgabe' ? betrag : '',
+    datum: datumFormatted,
+    info: document.getElementById(prefix + '_info').value,
+    empfaenger: document.getElementById(prefix + '_empfaenger').value,
+    aktion: document.getElementById(prefix + '_aktion').value,
+    aufschluesselung: aufschluesselung.join(' | '),
+    kostenEinzelposten: kostenEP.join(' | ')
+  };
+
+  try {
+    const response = await fetch(scriptUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    
+    showToast('✅ Eintrag gespeichert!', 'success');
+    
+    // Reset
+    setTimeout(() => {
+      renderForm(prefix === 'upload' ? 'entryFormUpload' : 'entryFormManual', prefix);
+      loadBalance();
+    }, 500);
+  } catch(err) {
+    showToast('❌ Fehler: ' + err.message, 'error');
+    btn.disabled = false;
+    btn.textContent = '💾 Eintrag speichern';
+  }
+}
+
+// ============ LOAD DATA ============
+async function loadBalance() {
+  if (!scriptUrl) return;
+  try {
+    const r = await fetch(scriptUrl);
+    const data = await r.json();
+    if (data.verfuegbar !== undefined) {
+      document.getElementById('balance').textContent = parseFloat(data.verfuegbar).toFixed(2) + ' €';
+    }
+  } catch(e) { console.log('Balance load failed', e); }
+}
+
+async function loadData() {
+  if (!scriptUrl) { showToast('Bitte erst die Script-URL setzen!', 'error'); return; }
+  
+  const container = document.getElementById('historyTable');
+  container.innerHTML = '<p style="color:var(--text2)"><span class="spinner"></span> Lade Daten...</p>';
+  
+  try {
+    const r = await fetch(scriptUrl);
+    const data = await r.json();
+    
+    if (data.verfuegbar !== undefined) {
+      document.getElementById('balance').textContent = parseFloat(data.verfuegbar).toFixed(2) + ' €';
+    }
+    
+    if (!data.data || data.data.length < 2) {
+      container.innerHTML = '<p style="color:var(--text2)">Keine Einträge vorhanden.</p>';
+      return;
+    }
+
+    const headers = data.data[0];
+    const rows = data.data.slice(1).filter(r => r.some(c => c !== ''));
+    
+    let html = '<table><thead><tr>';
+    const colNames = ['Einnahmen','Ausgaben','Datum','Info','Empf./Sender','Aktion','Aufschlüsselung','Kosten EP'];
+    colNames.forEach(h => html += `<th>${h}</th>`);
+    html += '</tr></thead><tbody>';
+    
+    rows.reverse().forEach(row => {
+      html += '<tr>';
+      row.forEach((cell, i) => {
+        let cls = '';
+        if (i === 0 && cell) cls = 'amount-in';
+        if (i === 1 && cell) cls = 'amount-out';
+        const val = (i <= 1 && cell) ? parseFloat(cell).toFixed(2) + ' €' : (cell || '—');
+        html += `<td class="${cls}">${val}</td>`;
+      });
+      html += '</tr>';
+    });
+    
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  } catch(err) {
+    container.innerHTML = `<p style="color:var(--red)">Fehler: ${err.message}</p>`;
+  }
+}
+
+// ============ TOAST ============
+function showToast(msg, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'toast ' + type + ' show';
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
