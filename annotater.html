@@ -29,7 +29,7 @@ body { font-family:'Segoe UI',sans-serif; background:#1a1a2e; color:#eee; height
 .recent-item .del:hover { color:#e94560; }
 
 /* Toolbar */
-.toolbar { display:flex; align-items:center; gap:.4rem; padding:.45rem .8rem; background:#16213e; border-bottom:2px solid #0f3460; flex-wrap:wrap; }
+.toolbar { display:flex; align-items:center; gap:.4rem; padding:.45rem .8rem; background:#16213e; border-bottom:2px solid #0f3460; flex-wrap:wrap; z-index:10; }
 .tg { display:flex; align-items:center; gap:.3rem; flex-wrap:wrap; }
 .sep { width:1px; height:22px; background:#333; margin:0 .4rem; }
 .tb { background:#0f3460; border:2px solid transparent; color:#bbb; padding:.35rem .65rem; border-radius:6px; cursor:pointer; font-size:.78rem; transition:all .15s; white-space:nowrap; }
@@ -45,10 +45,29 @@ body { font-family:'Segoe UI',sans-serif; background:#1a1a2e; color:#eee; height
 .save-st { font-size:.72rem; color:#4caf50; min-width:110px; }
 
 /* Page nav */
-.pnav { display:flex; align-items:center; justify-content:center; gap:.6rem; padding:.35rem; background:#0f3460; font-size:.82rem; }
+.pnav { display:flex; align-items:center; justify-content:center; gap:.6rem; padding:.35rem; background:#0f3460; font-size:.82rem; z-index:10; }
 .pnav button { background:#16213e; border:1px solid #333; color:#ccc; padding:.25rem .7rem; border-radius:4px; cursor:pointer; font-size:.78rem; }
 .pnav button:hover { background:#1a4a7a; }
 .pnav button:disabled { opacity:.35; cursor:not-allowed; }
+.pnav input[type=number] { width:50px; background:#16213e; border:1px solid #333; color:#eee; text-align:center; border-radius:4px; padding:.2rem; font-size:.8rem; }
+.pnav input[type=number]::-webkit-inner-spin-button { opacity:1; }
+
+/* Main content area */
+.main-area { display:flex; flex:1; overflow:hidden; }
+
+/* Sidebar */
+.sidebar { width:0; min-width:0; background:#121a30; border-right:2px solid #0f3460; overflow-y:auto; overflow-x:hidden; transition:width .3s, min-width .3s; flex-shrink:0; }
+.sidebar.open { width:180px; min-width:180px; }
+.sidebar-inner { padding:.5rem; }
+.sidebar h4 { color:#666; font-size:.7rem; text-transform:uppercase; letter-spacing:1px; margin-bottom:.5rem; text-align:center; }
+.thumb-item { cursor:pointer; margin-bottom:.6rem; border:2px solid transparent; border-radius:6px; overflow:hidden; transition:all .2s; position:relative; }
+.thumb-item:hover { border-color:#555; }
+.thumb-item.active { border-color:#e94560; box-shadow:0 0 8px rgba(233,69,96,.4); }
+.thumb-item canvas { display:block; width:100%; background:#fff; border-radius:4px; }
+.thumb-label { position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,.7); color:#ccc; font-size:.7rem; text-align:center; padding:2px 0; }
+.thumb-item.active .thumb-label { color:#e94560; font-weight:700; }
+.thumb-anno-dot { position:absolute; top:4px; right:4px; width:8px; height:8px; background:#e94560; border-radius:50%; display:none; }
+.thumb-item.has-annos .thumb-anno-dot { display:block; }
 
 /* Viewer */
 .viewer { flex:1; overflow:auto; display:flex; justify-content:center; padding:1rem; background:#111; }
@@ -61,6 +80,12 @@ body { font-family:'Segoe UI',sans-serif; background:#1a1a2e; color:#eee; height
 .toast { padding:.6rem 1rem; border-radius:8px; color:#fff; font-size:.82rem; animation:slideIn .3s ease; max-width:320px; }
 .toast.s { background:#2e7d32; } .toast.e { background:#c62828; } .toast.i { background:#1565c0; } .toast.w { background:#e65100; }
 @keyframes slideIn { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
+
+/* Scrollbar sidebar */
+.sidebar::-webkit-scrollbar { width:5px; }
+.sidebar::-webkit-scrollbar-track { background:#0a0f1e; }
+.sidebar::-webkit-scrollbar-thumb { background:#333; border-radius:3px; }
+.sidebar::-webkit-scrollbar-thumb:hover { background:#555; }
 </style>
 </head>
 <body>
@@ -85,6 +110,7 @@ body { font-family:'Segoe UI',sans-serif; background:#1a1a2e; color:#eee; height
   <div class="toolbar">
     <div class="tg">
       <button class="tb" id="btnBack">← Zurück</button>
+      <button class="tb" id="btnSidebar" title="Seitenleiste ein/aus">📑 Seiten</button>
       <span class="sep"></span>
       <span class="fname" id="fnameDisp"></span>
     </div>
@@ -113,20 +139,32 @@ body { font-family:'Segoe UI',sans-serif; background:#1a1a2e; color:#eee; height
   </div>
   <!-- Page nav -->
   <div class="pnav">
-    <button id="btnPrev" disabled>◀</button>
-    <span>Seite <span id="curP">1</span> / <span id="totP">1</span></span>
-    <button id="btnNext">▶</button>
+    <button id="btnPrev" disabled>◀ Vorherige</button>
+    <span>Seite</span>
+    <input type="number" id="pageInput" value="1" min="1">
+    <span>/ <span id="totP">1</span></span>
+    <button id="btnNext">Nächste ▶</button>
     <span class="sep"></span>
     <button id="btnZOut">➖</button>
     <span id="zoomLvl">150%</span>
     <button id="btnZIn">➕</button>
     <button id="btnZFit">Einpassen</button>
   </div>
-  <!-- Viewer -->
-  <div class="viewer" id="viewerCont">
-    <div class="page-wrap">
-      <canvas id="pdf-canvas"></canvas>
-      <canvas id="anno-canvas"></canvas>
+  <!-- Main content with sidebar -->
+  <div class="main-area">
+    <!-- Page Sidebar -->
+    <div class="sidebar open" id="sidebar">
+      <div class="sidebar-inner" id="sidebarInner">
+        <h4>Seitenübersicht</h4>
+        <div id="thumbList"></div>
+      </div>
+    </div>
+    <!-- Viewer -->
+    <div class="viewer" id="viewerCont">
+      <div class="page-wrap">
+        <canvas id="pdf-canvas"></canvas>
+        <canvas id="anno-canvas"></canvas>
+      </div>
     </div>
   </div>
 </div>
@@ -143,6 +181,7 @@ const A = {
   annos:{}, undoS:{}, redoS:{},
   drawing:false, sx:0, sy:0, path:[],
   dirty:false, autoSaveId:null,
+  thumbs:[], thumbRendered:{},
   pdfC: document.getElementById('pdf-canvas'),
   aC: document.getElementById('anno-canvas'),
   get pCtx(){ return this.pdfC.getContext('2d'); },
@@ -166,6 +205,106 @@ const A = {
     document.getElementById('btnRedo').onclick=()=>this.redo();
     document.getElementById('btnClear').onclick=()=>this.clearPage();
     document.getElementById('btnSave').onclick=()=>this.save();
+    document.getElementById('btnSidebar').onclick=()=>this.toggleSidebar();
+
+    // Page input
+    const pi=document.getElementById('pageInput');
+    pi.onchange=()=>{
+      let v=parseInt(pi.value);
+      if(isNaN(v))v=this.page;
+      v=Math.max(1,Math.min(this.pages,v));
+      pi.value=v;
+      this.page=v;
+      this.render();
+      this.highlightThumb();
+    };
+    pi.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();pi.blur();pi.dispatchEvent(new Event('change'));}};
+  },
+
+  // --- Sidebar ---
+  toggleSidebar(){
+    document.getElementById('sidebar').classList.toggle('open');
+  },
+
+  async buildThumbs(){
+    const list=document.getElementById('thumbList');
+    list.innerHTML='';
+    this.thumbs=[];
+    this.thumbRendered={};
+    for(let i=1;i<=this.pages;i++){
+      const item=document.createElement('div');
+      item.className='thumb-item'+(i===this.page?' active':'');
+      item.dataset.page=i;
+
+      const dot=document.createElement('div');
+      dot.className='thumb-anno-dot';
+      item.appendChild(dot);
+
+      const canvas=document.createElement('canvas');
+      item.appendChild(canvas);
+
+      const label=document.createElement('div');
+      label.className='thumb-label';
+      label.textContent='Seite '+i;
+      item.appendChild(label);
+
+      item.onclick=()=>{
+        this.page=i;
+        document.getElementById('pageInput').value=i;
+        this.render();
+        this.highlightThumb();
+      };
+
+      list.appendChild(item);
+      this.thumbs.push({el:item,canvas,page:i});
+    }
+    // Render visible thumbs
+    this.renderVisibleThumbs();
+    // Lazy render on scroll
+    document.getElementById('sidebar').onscroll=()=>this.renderVisibleThumbs();
+    this.updateThumbAnnoDots();
+  },
+
+  renderVisibleThumbs(){
+    const sb=document.getElementById('sidebar');
+    const sbRect=sb.getBoundingClientRect();
+    for(const th of this.thumbs){
+      if(this.thumbRendered[th.page])continue;
+      const r=th.el.getBoundingClientRect();
+      // Check if visible (with 200px buffer)
+      if(r.bottom>=sbRect.top-200 && r.top<=sbRect.bottom+200){
+        this.renderThumb(th);
+      }
+    }
+  },
+
+  async renderThumb(th){
+    if(this.thumbRendered[th.page])return;
+    this.thumbRendered[th.page]=true;
+    try{
+      const pg=await this.pdf.getPage(th.page);
+      const vp=pg.getViewport({scale:0.3});
+      th.canvas.width=vp.width;
+      th.canvas.height=vp.height;
+      await pg.render({canvasContext:th.canvas.getContext('2d'),viewport:vp}).promise;
+    }catch(e){}
+  },
+
+  highlightThumb(){
+    for(const th of this.thumbs){
+      th.el.classList.toggle('active',th.page===this.page);
+    }
+    // Scroll active into view
+    const active=this.thumbs.find(t=>t.page===this.page);
+    if(active)active.el.scrollIntoView({block:'nearest',behavior:'smooth'});
+    this.updateThumbAnnoDots();
+  },
+
+  updateThumbAnnoDots(){
+    for(const th of this.thumbs){
+      const has=this.annos[''+th.page]&&this.annos[''+th.page].length>0;
+      th.el.classList.toggle('has-annos',!!has);
+    }
   },
 
   // --- Upload ---
@@ -180,16 +319,24 @@ const A = {
 
   async loadFile(file){
     if(!file.name.toLowerCase().endsWith('.pdf'))return this.toast('Nur PDFs!','e');
-    const buf=await file.arrayBuffer();
     this.fname=file.name;
     this.fileKey='pdfanno_'+file.name+'_'+file.size;
-    // Load saved annos
+    const buf=await file.arrayBuffer();
+    try{
+      const b64=btoa(String.fromCharCode(...new Uint8Array(buf)));
+      localStorage.setItem(this.fileKey+'_meta',JSON.stringify({name:file.name,data:b64,ts:Date.now()}));
+      let list=JSON.parse(localStorage.getItem('pdfanno_recent')||'[]');
+      list=list.filter(k=>k!==this.fileKey);
+      list.unshift(this.fileKey);
+      list=list.slice(0,5);
+      localStorage.setItem('pdfanno_recent',JSON.stringify(list));
+    }catch(e){}
     const saved=localStorage.getItem(this.fileKey);
     this.annos=saved?JSON.parse(saved):{};
     this.undoS={}; this.redoS={}; this.dirty=false;
     await this.openPDF(buf);
     this.showApp();
-    this.addRecent();
+    this.showRecent();
     this.toast('PDF geladen!','s');
   },
 
@@ -206,29 +353,6 @@ const A = {
     this.showApp();
     this.toast('PDF geladen!','s');
   },
-
-  addRecent(){
-    // Save PDF data for reopening (limited by localStorage ~5-10MB)
-    try{
-      const reader=new FileReader();
-      reader.onload=()=>{
-        const b64=reader.result.split(',')[1];
-        localStorage.setItem(this.fileKey+'_meta',JSON.stringify({name:this.fname,data:b64,ts:Date.now()}));
-        let list=JSON.parse(localStorage.getItem('pdfanno_recent')||'[]');
-        list=list.filter(k=>k!==this.fileKey);
-        list.unshift(this.fileKey);
-        list=list.slice(0,5);
-        localStorage.setItem('pdfanno_recent',JSON.stringify(list));
-        this.showRecent();
-      };
-      // re-read from canvas? No, we need original. Store only if small enough
-      // Actually we already have the file in loadFile, but need it here.
-      // We'll store on initial load instead.
-    }catch(e){}
-  },
-
-  // Override loadFile to also store data
-  async _origLoadFile(){},
 
   showRecent(){
     const cont=document.getElementById('recent');
@@ -250,7 +374,7 @@ const A = {
         if(e.target.classList.contains('del')){
           e.stopPropagation();
           const dk=e.target.dataset.dk;
-          localStorage.removeItem(dk); localStorage.removeItem(dk+'_meta');
+          localStorage.removeItem(dk);localStorage.removeItem(dk+'_meta');
           let l=JSON.parse(localStorage.getItem('pdfanno_recent')||'[]');
           l=l.filter(k=>k!==dk);
           localStorage.setItem('pdfanno_recent',JSON.stringify(l));
@@ -285,7 +409,10 @@ const A = {
     this.pages=this.pdf.numPages;
     this.page=1;
     document.getElementById('totP').textContent=this.pages;
+    const pi=document.getElementById('pageInput');
+    pi.value=1; pi.max=this.pages;
     await this.render();
+    await this.buildThumbs();
   },
 
   async render(){
@@ -300,11 +427,15 @@ const A = {
 
   chgPage(d){
     const n=this.page+d;
-    if(n>=1&&n<=this.pages){this.page=n;this.render();}
+    if(n>=1&&n<=this.pages){
+      this.page=n;
+      document.getElementById('pageInput').value=n;
+      this.render();
+      this.highlightThumb();
+    }
   },
 
   updNav(){
-    document.getElementById('curP').textContent=this.page;
     document.getElementById('btnPrev').disabled=this.page<=1;
     document.getElementById('btnNext').disabled=this.page>=this.pages;
     document.getElementById('zoomLvl').textContent=Math.round(this.scale*100)+'%';
@@ -335,16 +466,12 @@ const A = {
     this.aC.onmousemove=e=>this.mMove(e);
     this.aC.onmouseup=e=>this.mUp(e);
     this.aC.onmouseleave=e=>{if(this.drawing)this.mUp(e);};
-    // Touch
     this.aC.ontouchstart=e=>{e.preventDefault();this.mDown(this.touch(e));};
     this.aC.ontouchmove=e=>{e.preventDefault();this.mMove(this.touch(e));};
     this.aC.ontouchend=e=>{e.preventDefault();this.mUp(this.touch(e));};
   },
 
-  touch(e){
-    const t=e.touches&&e.touches[0]||e.changedTouches&&e.changedTouches[0];
-    return t||e;
-  },
+  touch(e){ return e.touches&&e.touches[0]||e.changedTouches&&e.changedTouches[0]||e; },
 
   pos(e){
     const r=this.aC.getBoundingClientRect();
@@ -395,6 +522,7 @@ const A = {
       this.redoS[k]=[];
       this.dirty=true;
       this.updUndoRedo();
+      this.updateThumbAnnoDots();
     }
     this.path=[];
     this.redraw();
@@ -444,6 +572,7 @@ const A = {
     this.redoS[k]=[];
     this.dirty=true;
     this.updUndoRedo();
+    this.updateThumbAnnoDots();
     this.redraw();
   },
 
@@ -462,6 +591,7 @@ const A = {
         this.redoS[k]=[];
         this.dirty=true;
         this.updUndoRedo();
+        this.updateThumbAnnoDots();
         this.redraw();
         break;
       }
@@ -479,7 +609,7 @@ const A = {
     if(e.act==='add'){const i=list.lastIndexOf(e.a);if(i!==-1)list.splice(i,1);}
     else if(e.act==='rm')list.splice(e.idx,0,e.a);
     else if(e.act==='clear')this.annos[k]=e.prev;
-    this.dirty=true; this.updUndoRedo(); this.redraw();
+    this.dirty=true; this.updUndoRedo(); this.updateThumbAnnoDots(); this.redraw();
     this.toast('Rückgängig','i');
   },
 
@@ -493,7 +623,7 @@ const A = {
     if(e.act==='add')list.push(e.a);
     else if(e.act==='rm'){const i=list.indexOf(e.a);if(i!==-1)list.splice(i,1);}
     else if(e.act==='clear')this.annos[k]=[];
-    this.dirty=true; this.updUndoRedo(); this.redraw();
+    this.dirty=true; this.updUndoRedo(); this.updateThumbAnnoDots(); this.redraw();
     this.toast('Wiederholt','i');
   },
 
@@ -504,7 +634,7 @@ const A = {
     this.undoS[k].push({act:'clear',prev});
     this.redoS[k]=[];
     this.annos[k]=[];
-    this.dirty=true; this.updUndoRedo(); this.redraw();
+    this.dirty=true; this.updUndoRedo(); this.updateThumbAnnoDots(); this.redraw();
     this.toast('Gelöscht','w');
   },
 
@@ -542,6 +672,8 @@ const A = {
       if(e.ctrlKey&&e.key==='z'){e.preventDefault();this.undo();}
       if(e.ctrlKey&&e.key==='y'){e.preventDefault();this.redo();}
       if(e.ctrlKey&&e.key==='s'){e.preventDefault();this.save();}
+      if(e.key==='ArrowLeft'&&!e.target.closest('input'))this.chgPage(-1);
+      if(e.key==='ArrowRight'&&!e.target.closest('input'))this.chgPage(1);
     });
   },
 
@@ -561,32 +693,6 @@ const A = {
     setTimeout(()=>t.remove(),3000);
   }
 };
-
-// Patch loadFile to also store PDF data for reopening
-const _origLoad=A.loadFile.bind(A);
-A.loadFile=async function(file){
-  if(!file.name.toLowerCase().endsWith('.pdf'))return this.toast('Nur PDFs!','e');
-  this.fname=file.name;
-  this.fileKey='pdfanno_'+file.name+'_'+file.size;
-  const buf=await file.arrayBuffer();
-  // Store for reopening
-  try{
-    const b64=btoa(String.fromCharCode(...new Uint8Array(buf)));
-    localStorage.setItem(this.fileKey+'_meta',JSON.stringify({name:file.name,data:b64,ts:Date.now()}));
-    let list=JSON.parse(localStorage.getItem('pdfanno_recent')||'[]');
-    list=list.filter(k=>k!==this.fileKey);
-    list.unshift(this.fileKey);
-    list=list.slice(0,5);
-    localStorage.setItem('pdfanno_recent',JSON.stringify(list));
-  }catch(e){ /* file too large for localStorage */ }
-  const saved=localStorage.getItem(this.fileKey);
-  this.annos=saved?JSON.parse(saved):{};
-  this.undoS={}; this.redoS={}; this.dirty=false;
-  await this.openPDF(buf);
-  this.showApp();
-  this.showRecent();
-  this.toast('PDF geladen!','s');
-}.bind(A);
 
 A.init();
 </script>
